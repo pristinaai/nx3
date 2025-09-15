@@ -1,8 +1,8 @@
 bl_info = {
     "name": "NX3 Importer/Exporter",
     "author": "IRLABS",
-    "version": (1, 3),
-    "blender": (4, 2, 0),
+    "version": (1, 4),
+    "blender": (4, 3, 2),
     "location": "File > Import / Export",
     "description": "Imports and Exports neural 3D files, .NX3, with options to apply modifiers and combine meshes.",
     "category": "Import-Export",
@@ -58,7 +58,7 @@ class ImportNX3(bpy.types.Operator, ImportHelper):
                 if key not in obj['_RNA_UI']:
                     obj['_RNA_UI'][key] = {"description": ""}
             except Exception as e:
-                print(f"Failed to set property {key}: {str(e)}")
+                self.report({'WARNING'}, f"Failed to set property {key}: {str(e)}")
 
     def execute(self, context):
         nx3_path = self.filepath
@@ -66,32 +66,41 @@ class ImportNX3(bpy.types.Operator, ImportHelper):
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
                 with zipfile.ZipFile(nx3_path, 'r') as zfile:
+                    # Check total size before extraction (5GB limit)
+                    total_size = sum(info.file_size for info in zfile.infolist())
+                    if total_size > 5 * 1024 * 1024 * 1024:  # 5GB in bytes
+                        self.report({'ERROR'}, f"File too large: {total_size / (1024**3):.1f}GB. Maximum allowed: 5GB")
+                        return {'CANCELLED'}
                     zfile.extractall(temp_dir)
             except zipfile.BadZipFile:
                 self.report({'ERROR'}, "Invalid .nx3 file (cannot unzip).")
                 return {'CANCELLED'}
 
-            # Find glb, text, and safetensor
-            glb_path, txt_path, safetensor_path = None, None, None
+            # Find glb, json, and safetensor
+            glb_path, json_path, safetensor_path = None, None, None
             for filename in os.listdir(temp_dir):
                 lower_name = filename.lower()
                 file_path = os.path.join(temp_dir, filename)
 
                 if lower_name.endswith(".glb"):
                     glb_path = file_path
-                elif lower_name.endswith(".txt"):
-                    txt_path = file_path
+                elif lower_name.endswith(".json"):
+                    json_path = file_path
                 elif lower_name.endswith(".safetensor"):
                     safetensor_path = file_path
 
-            # First load the properties from txt file if it exists
+            # First load the properties from json file if it exists
             properties_data = None
-            if txt_path and os.path.isfile(txt_path):
+            geometry_properties = None
+            lora_properties = None
+            if json_path and os.path.isfile(json_path):
                 try:
-                    with open(txt_path, 'r', encoding='utf-8') as f:
+                    with open(json_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    if isinstance(data, dict) and "properties" in data:
-                        properties_data = data["properties"]
+                    if isinstance(data, dict):
+                        properties_data = data.get("properties")
+                        geometry_properties = data.get("Geometry_properties")
+                        lora_properties = data.get("Lora_properties")
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to load properties: {str(e)}")
 
@@ -104,6 +113,12 @@ class ImportNX3(bpy.types.Operator, ImportHelper):
                 
                 # Get newly imported objects
                 new_objects = [obj for obj in bpy.data.objects if obj.name not in initial_objects]
+                
+                # Report additional metadata if available
+                if geometry_properties:
+                    self.report({'INFO'}, f"Geometry: {geometry_properties.get('name', 'Unknown')} ({geometry_properties.get('3d_format', 'Unknown')})")
+                if lora_properties:
+                    self.report({'INFO'}, f"LoRA: {lora_properties.get('Lora_source', 'Unknown')} - {lora_properties.get('Lora_destination', 'No destination')}")
                 
                 # Apply properties if we have them
                 if properties_data and new_objects:
@@ -157,8 +172,9 @@ class ImportNX3(bpy.types.Operator, ImportHelper):
                     
                     for obj in new_objects:
                         obj.update_tag()
-                        for area in context.screen.areas:
-                            area.tag_redraw()
+                        if context.screen and context.screen.areas:
+                            for area in context.screen.areas:
+                                area.tag_redraw()
             else:
                 self.report({'ERROR'}, "No .glb file found in the NX3 archive.")
                 return {'CANCELLED'}
@@ -327,14 +343,27 @@ class ExportNX3(bpy.types.Operator, ExportHelper):
                     if obj_props:
                         properties[obj.name] = obj_props
 
-            # Write properties to nx3.txt in JSON format
-            txt_filename = os.path.join(temp_dir, "nx3.txt")
-            with open(txt_filename, "w", encoding="utf-8") as f:
-                json.dump({
-                    "version": "1.0",
-                    "type": "nx3_properties",
-                    "properties": properties
-                }, f, indent=4, default=lambda o: str(o))
+            # Write properties to nx3.json in JSON format
+            json_filename = os.path.join(temp_dir, "nx3.json")
+            
+            # Create structured JSON with additional metadata
+            json_data = {
+                "version": "1.0",
+                "type": "nx3_properties",
+                "Geometry_properties": {
+                    "name": base_filename,
+                    "collection": "Collection",
+                    "3d_format": "glb"
+                },
+                "Lora_properties": {
+                    "Lora_source": "local",
+                    "Lora_destination": ""
+                },
+                "properties": properties
+            }
+            
+            with open(json_filename, "w", encoding="utf-8") as f:
+                json.dump(json_data, f, indent=4, default=lambda o: str(o))
             
             safetensor_filename = os.path.join(temp_dir, "nx3.safetensor")
             with open(safetensor_filename, "wb") as f:
@@ -343,7 +372,7 @@ class ExportNX3(bpy.types.Operator, ExportHelper):
             zip_filename = os.path.join(temp_dir, "temp_export.zip")
             with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as z:
                 z.write(glb_filename, arcname="model.glb")
-                z.write(txt_filename, arcname="nx3.txt")
+                z.write(json_filename, arcname="nx3.json")
                 z.write(safetensor_filename, arcname="nx3.safetensor")
 
             try:
