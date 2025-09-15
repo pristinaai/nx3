@@ -1,4 +1,5 @@
 # NX3: Neural eXchange 3D
+## New format combining 3D and AI together
 ![NX3 Icon](https://github.com/pristinaai/nx3/blob/main/nx3-icon.jpg?raw=true)
 
 **NX3** is a lightweight, extensible file format for sharing 3D models alongside additional neural data. An NX3 file is simply a `.zip` archive renamed with the `.nx3` extension. By convention, inside the archive you will find:
