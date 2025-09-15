@@ -3,7 +3,7 @@
 
 **NX3** is a lightweight, extensible file format for sharing 3D models alongside additional neural data. An NX3 file is simply a `.zip` archive renamed with the `.nx3` extension. By convention, inside the archive you will find:
 1. A **`.glb`** file containing the 3D model (using the [glTF 2.0](https://github.com/KhronosGroup/glTF) binary format).
-2. A **`.txt`** file for storing human-readable metadata or notes.
+2. A **`.json`** file for storing human-readable metadata or notes.
 3. A **`.safetensor`** file for optional neural data, weights, or anything relevant to advanced ML/AI workflows.
 
 This layout makes NX3 simple to inspect, extract, and repack using standard zip tools—but also seamlessly integrable within pipelines that require a consistent 3D and neural data packaging format.
@@ -12,9 +12,9 @@ This layout makes NX3 simple to inspect, extract, and repack using standard zip 
 
 ## Why NX3?
 
-- **Single, self-contained package**: Keep your geometry, metadata, and ML/AI artifacts together.  
+- **Single, self-contained package**: Keep your geometry, metadata, and ML/AI Lora models together.  
 - **Built on open standards**: The 3D model is in `.glb` (binary glTF), which is widely supported by engines, tools, and converters.  
-- **Extensible**: The `.txt` and `.safetensor` files can contain anything you like, from user instructions to advanced model weights—no format policing.  
+- **Extensible Metadata**: The `.json` file contains information about the AI Image generation engine used for the lora, Flux or SDXL as examples. And information on if the lora is local or a URL. 
 - **Easy to create and open**: Zip your files, rename to `.nx3`, and you’re done. Tools that understand NX3 can parse it automatically.
 
 ---
@@ -26,7 +26,7 @@ This layout makes NX3 simple to inspect, extract, and repack using standard zip 
 A dedicated Blender add-on is available to:
 
 1. **Import NX3**: Extracts the `.glb` from your NX3 and imports it into Blender.  
-2. **Export NX3**: Exports selected objects in Blender as `.glb`, adds placeholder `.txt` and `.safetensor` files (or your own data), zips them, and renames the result to `.nx3`.
+2. **Export NX3**: Exports selected objects in Blender as `.glb`, adds placeholder `.json` and `.safetensor` files (or your own data), zips them, and renames the result to `.nx3`.
 
 **Features**:
 - **Apply modifiers** at export (optional).  
@@ -48,7 +48,7 @@ A dedicated Blender add-on is available to:
 - **Import**:  
   1. Go to **File > Import > NX3 (.nx3)**.  
   2. Choose your `.nx3` file.  
-  3. The add-on extracts and imports the `.glb` and logs any `.txt` or `.safetensor` found.
+  3. The add-on extracts and imports the `.glb` and logs any `.json` or `.safetensor` found.
 
 - **Export**:  
   1. Select the objects in your scene.  
@@ -56,15 +56,15 @@ A dedicated Blender add-on is available to:
   3. Choose your export path.  
   4. (Optional) Toggle “Apply Modifiers” or “Combine Meshes.”  
   5. Click “Export NX3.”  
-  6. Blender creates a `.glb`, `.txt`, `.safetensor`, zips them, and renames the file to `.nx3`.
+  6. Blender creates a `.glb`, `.json`, `.safetensor`, zips them, and renames the file to `.nx3`.
 
 ---
 
 ## Working with NX3 Files Directly
 
 Because `.nx3` is just a **renamed zip**:
-- **To open**: Rename `.nx3` to `.zip`, then uncompress. You’ll see `model.glb`, `nx3.txt`, and `nx3.safetensor` (names may vary).
-- **To pack**: Place your `.glb`, `.txt`, and `.safetensor` in a folder. Zip them and rename the `.zip` to `.nx3`.
+- **To open**: Rename `.nx3` to `.zip`, then uncompress. You’ll see `model.glb`, `nx3.json`, and `nx3.safetensor` (names and formats may vary).
+- **To pack**: Place your `.glb`, `.json`, and `.safetensor` in a folder. Zip them and rename the `.zip` to `.nx3`.
 
 ---
 
